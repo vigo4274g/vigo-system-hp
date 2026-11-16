@@ -1,0 +1,1 @@
+self.onmessage=e=>{let t=e.data,n=performance.now(),r=Array(t);for(let e=0;e<t;e++)r[e]={id:e,date:20260101+Math.floor(Math.random()*365),amount:Math.floor(Math.random()*5e5)};r.sort((e,t)=>e.date-t.date||t.amount-e.amount);let i=0;for(let e of r)i+=e.amount;self.postMessage({ms:performance.now()-n,n:t,total:i,first:r[0]})};
