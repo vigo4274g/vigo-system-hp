@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>動画コマ送り 試作</title>
+<style>
+  html, body { margin: 0; background: #02040a; color: #cfd8ea; font-family: "Hiragino Sans", sans-serif; }
+  .track { height: 500svh; }
+  .stage { position: sticky; top: 0; height: 100svh; overflow: hidden; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; left: 12px; bottom: 12px; z-index: 2; font: 12px ui-monospace, Menlo, monospace; background: rgba(0,0,0,.6); padding: 8px 10px; border-radius: 8px; line-height: 1.6; }
+  .bar { position: fixed; left: 0; top: 0; height: 3px; background: linear-gradient(90deg, #c9a24b, #6fa4ff); width: 0; z-index: 2; }
+  .hint { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); font-size: 13px; letter-spacing: .2em; opacity: .7; }
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="track"><div class="stage"><canvas id="c"></canvas></div></div>
+<p class="hint">スクロールしてください</p>
+<div class="hud" id="hud">読み込み中…</div>
+<script>
+// スクロール量でコマを選び、隣のコマと重ねて描く（コマ数が少なくてもなめらかに見せる）
+// 読み込みが終わっていないコマは使わず、一番近い読み込み済みのコマを出す（飛ばない）
+(async () => {
+  const man = await (await fetch('./frames/manifest.json')).json();
+  const N = man.count;
+  const imgs = new Array(N);
+  const ready = new Uint8Array(N);
+  let loaded = 0;
+  const c = document.getElementById('c'), g = c.getContext('2d');
+  const hud = document.getElementById('hud'), bar = document.getElementById('bar');
+  const load = (i) => new Promise((res) => {
+    const im = new Image();
+    im.decoding = 'async';
+    im.onload = () => { imgs[i] = im; ready[i] = 1; loaded++; res(); };
+    im.onerror = res;
+    im.src = `./frames/${String(i + 1).padStart(4, '0')}.webp`;
+  });
+  // 粗い順に読む：4コマおき → 2コマおき → 残り（先に全体の流れが見える）
+  const order = [];
+  for (const step of [8, 4, 2, 1]) for (let i = 0; i < N; i += step) if (!order.includes(i)) order.push(i);
+  (async () => { for (let k = 0; k < order.length; k += 6) await Promise.all(order.slice(k, k + 6).map(load)); })();
+
+  const resize = () => { const d = Math.min(devicePixelRatio, 2); c.width = innerWidth * d; c.height = innerHeight * d; };
+  resize(); addEventListener('resize', resize);
+  const nearest = (i) => { for (let d = 0; d < N; d++) { if (i - d >= 0 && ready[i - d]) return i - d; if (i + d < N && ready[i + d]) return i + d; } return -1; };
+  const draw = (im, a) => {
+    // 画面を覆うように拡大（中心を残す）
+    const s = Math.max(c.width / im.width, c.height / im.height);
+    const w = im.width * s, h = im.height * s;
+    g.globalAlpha = a;
+    g.drawImage(im, (c.width - w) / 2, (c.height - h) / 2, w, h);
+  };
+  let target = 0, cur = 0, t0 = performance.now(), frames = 0, fps = 0;
+  const onScroll = () => { const max = document.documentElement.scrollHeight - innerHeight; target = max > 0 ? scrollY / max : 0; };
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  const tick = (now) => {
+    requestAnimationFrame(tick);
+    cur += (target - cur) * 0.18;
+    const f = cur * (N - 1), i0 = Math.floor(f), frac = f - i0;
+    const a = nearest(i0), b = nearest(Math.min(N - 1, i0 + 1));
+    g.globalAlpha = 1; g.fillStyle = '#02040a'; g.fillRect(0, 0, c.width, c.height);
+    if (a >= 0) draw(imgs[a], 1);
+    if (b >= 0 && b !== a) draw(imgs[b], frac);
+    bar.style.width = `${cur * 100}%`;
+    frames++; if (now - t0 > 500) { fps = Math.round(frames * 1000 / (now - t0)); frames = 0; t0 = now; }
+    hud.textContent = `コマ ${a + 1}/${N}｜読み込み ${loaded}/${N}｜${fps}fps`;
+  };
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
