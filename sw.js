@@ -1,7 +1,7 @@
 // ページはネット優先（新しい版を出す）・部品は保存したものを先に使う。電波がなくても開ける。
-const CACHE = 'vigo-system-v1';
+const CACHE = 'vigo-system-v2';
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './logo-mark.svg', './manifest.webmanifest'])));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './logo-mark.png', './logo-full-white.png', './manifest.webmanifest'])));
   self.skipWaiting();
 });
 self.addEventListener('activate', (e) => {
